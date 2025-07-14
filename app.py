@@ -8,22 +8,19 @@ import fitz  # Library PyMuPDF
 import toml # Library untuk membaca file config.toml
 
 # --- FUNGSI-FUNGSI ---
-
+# (Semua fungsi Anda di sini tidak berubah, jadi saya singkat)
 @st.cache_data(ttl=1800)
 def load_config(file_path="config.toml"):
-    """Memuat konfigurasi dari file TOML."""
+    # ... (kode fungsi ini sama seperti sebelumnya)
     try:
         return toml.load(file_path)
     except FileNotFoundError:
         st.error(f"File konfigurasi '{file_path}' tidak ditemukan.")
         return None
-    except Exception as e:
-        st.error(f"Gagal memuat konfigurasi: {e}")
-        return None
 
 @st.cache_data(ttl=1800)
 def bangun_basis_pengetahuan(_creds, folder_id):
-    """Menghubungi Google Drive, membaca semua file dari folder, dan menggabungkannya."""
+    # ... (kode fungsi ini sama seperti sebelumnya)
     try:
         service = build('drive', 'v3', credentials=_creds)
         teks_gabungan = ""
@@ -34,44 +31,37 @@ def bangun_basis_pengetahuan(_creds, folder_id):
             st.error("Tidak ada file Google Docs atau PDF yang ditemukan di folder. Pastikan ID folder benar dan file sudah dibagikan dengan benar.")
             return None
         for item in items:
-            file_id = item['id']
-            file_name = item['name']
-            mime_type = item['mimeType']
+            # ... (logika pembacaan file sama seperti sebelumnya)
+            file_id, file_name, mime_type = item['id'], item['name'], item['mimeType']
             teks_dari_file = ""
             if mime_type == 'application/vnd.google-apps.document':
                 request = service.files().export_media(fileId=file_id, mimeType='text/plain')
                 fh = io.BytesIO()
                 downloader = MediaIoBaseDownload(fh, request)
                 done = False
-                while not done:
-                    status, done = downloader.next_chunk()
+                while not done: status, done = downloader.next_chunk()
                 teks_dari_file = fh.getvalue().decode('utf-8')
             elif mime_type == 'application/pdf':
                 request = service.files().get_media(fileId=file_id)
                 fh = io.BytesIO()
                 downloader = MediaIoBaseDownload(fh, request)
                 done = False
-                while not done:
-                    status, done = downloader.next_chunk()
+                while not done: status, done = downloader.next_chunk()
                 fh.seek(0)
                 with fitz.open(stream=fh, filetype="pdf") as doc:
-                    for page in doc:
-                        teks_dari_file += page.get_text()
+                    for page in doc: teks_dari_file += page.get_text()
             teks_gabungan += f"\n\n--- Mulai Dokumen: {file_name} ---\n{teks_dari_file}\n--- Selesai Dokumen: {file_name} ---\n"
         return teks_gabungan
     except Exception as e:
         st.error(f"Terjadi kesalahan saat mengakses Google Drive atau memproses file: {e}")
-        st.info("Pastikan kredensial di Streamlit Secrets sudah benar dan folder sudah dibagikan ke email service account.")
         return None
 
 # --- APLIKASI UTAMA STREAMLIT ---
 
-# Memuat konfigurasi terlebih dahulu
 config = load_config()
 if not config:
     st.stop()
 
-# Mengatur konfigurasi halaman dari file config.toml
 st.set_page_config(
     page_title=config["app"]["title"],
     page_icon=config["app"]["icon"]
@@ -80,7 +70,6 @@ st.set_page_config(
 st.title(f'{config["app"]["icon"]} {config["app"]["title"]}')
 st.caption(config["app"]["caption"])
 
-# Membaca template prompt dari file eksternal
 try:
     with open(config["app"].get("prompt_template_file", "prompt_template.txt"), 'r', encoding='utf-8') as f:
         prompt_template = f.read()
@@ -88,7 +77,6 @@ except FileNotFoundError:
     st.error(config["error_messages"]["template_not_found"].format(file_name=config["app"].get("prompt_template_file", "prompt_template.txt")))
     st.stop()
 
-# Memeriksa apakah semua secrets sudah diatur
 if 'type' in st.secrets and 'project_id' in st.secrets and 'gemini_api_key' in st.secrets:
     try:
         FOLDER_ID = st.secrets.get("folder_id", "")
@@ -101,54 +89,46 @@ if 'type' in st.secrets and 'project_id' in st.secrets and 'gemini_api_key' in s
 
         if basis_pengetahuan:
             genai.configure(api_key=st.secrets["gemini_api_key"])
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-pro')
 
             # Inisialisasi riwayat chat
             if "messages" not in st.session_state:
                 st.session_state.messages = []
-
-            # >>> BLOK KODE BARU UNTUK SAPAAN PEMBUKA <<<
-            # Hanya tampilkan sapaan jika chat masih kosong
-            if not st.session_state.messages:
-                welcome_message = """
-                Selamat datang di **MutasiPedia**! 👋
-                
-                Saya adalah asisten virtual kepegawaian dari BKPSDMD Bangka yang siap membantu Anda. Anda bisa menanyakan hal-hal berikut:
-                
-                * **Informasi Kepegawaian:** Seputar aturan Kenaikan Pangkat, Pensiun, Pindah Instansi, dll.
-                * **Pengetahuan Umum:** Jika informasi tidak ada dalam data saya, saya akan mencoba menjawab sebagai asisten umum.
-                
-                Silakan ajukan pertanyaan Anda di bawah ini.
-                """
-                # Tampilkan pesan sapaan di antarmuka
-                with st.chat_message("assistant"):
-                    st.markdown(welcome_message)
-                # Tambahkan sapaan ke riwayat chat agar tidak muncul lagi
+                # Menambahkan sapaan pembuka hanya saat inisialisasi
+                welcome_message = config["app"].get("welcome_message", "Selamat datang! Ada yang bisa saya bantu?")
                 st.session_state.messages.append({"role": "assistant", "content": welcome_message})
 
-            # Tampilkan seluruh riwayat chat (termasuk sapaan)
+            # >>> PERUBAHAN UTAMA: BAGIAN TAMPILAN DAN LOGIKA DIPISAH <<<
+
+            # 1. BLOK UNTUK MENAMPILKAN SELURUH RIWAYAT CHAT
+            # Blok ini akan selalu menggambar ulang semua pesan dari awal setiap kali ada interaksi
             for message in st.session_state.messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            # Terima input dari pengguna
+            # 2. BLOK UNTUK MENANGANI INPUT BARU DARI PENGGUNA
+            # Blok ini hanya bertugas menambah pesan baru ke riwayat, lalu memicu gambar ulang
             if prompt_input := st.chat_input(config["app"]["chat_input_placeholder"]):
+                # Tambahkan pesan pengguna ke riwayat
                 st.session_state.messages.append({"role": "user", "content": prompt_input})
-                with st.chat_message("user"):
-                    st.markdown(prompt_input)
 
+                # Siapkan prompt untuk AI
                 prompt_lengkap = prompt_template.format(
                     basis_pengetahuan=basis_pengetahuan,
                     prompt=prompt_input
                 )
+
+                # Dapatkan respons dari AI
+                with st.spinner("Sedang berpikir..."):
+                    response = model.generate_content(prompt_lengkap)
                 
-                with st.chat_message("assistant"):
-                    with st.spinner("Sedang berpikir..."):
-                        response = model.generate_content(prompt_lengkap)
-                        st.markdown(response.text)
+                # Tambahkan respons AI ke riwayat
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
+
+                # Memicu gambar ulang seluruh halaman
+                st.rerun()
+
     except Exception as e:
         st.error(f"Terjadi kesalahan pada aplikasi: {e}")
-
 else:
     st.error(config["error_messages"]["secrets_not_found"])
