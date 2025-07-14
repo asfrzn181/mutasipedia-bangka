@@ -1,0 +1,9 @@
+[app]
+title = "MutasiPedia"
+caption = "Asisten Cerdas Kepegawaian BKPSDMD Bangka"
+icon = "🤖"
+chat_input_placeholder = "Tanyakan tentang layanan kepegawaian..."
+
+[error_messages]
+template_not_found = "File '{file_name}' tidak ditemukan. Pastikan file tersebut ada di folder yang sama dengan app.py."
+secrets_not_found = "Kredensial atau API Key belum diatur di Streamlit Secrets. Silakan periksa kembali pengaturan Anda."
