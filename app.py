@@ -9,7 +9,7 @@ import toml # Library untuk membaca file config.toml
 
 # --- FUNGSI-FUNGSI ---
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=1800)
 def load_config(file_path="config.toml"):
     """Memuat konfigurasi dari file TOML."""
     try:
@@ -21,7 +21,7 @@ def load_config(file_path="config.toml"):
         st.error(f"Gagal memuat konfigurasi: {e}")
         return None
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=1800)
 def bangun_basis_pengetahuan(_creds, folder_id):
     """Menghubungi Google Drive, membaca semua file dari folder, dan menggabungkannya."""
     try:
@@ -91,7 +91,7 @@ except FileNotFoundError:
 # Memeriksa apakah semua secrets sudah diatur
 if 'type' in st.secrets and 'project_id' in st.secrets and 'gemini_api_key' in st.secrets:
     try:
-        FOLDER_ID = st.secrets.get("folder_id", "") # Mengambil ID Folder dari secrets
+        FOLDER_ID = st.secrets.get("folder_id", "")
         if not FOLDER_ID:
             st.error("ID Folder Google Drive belum diatur di Streamlit Secrets.")
             st.stop()
@@ -103,13 +103,35 @@ if 'type' in st.secrets and 'project_id' in st.secrets and 'gemini_api_key' in s
             genai.configure(api_key=st.secrets["gemini_api_key"])
             model = genai.GenerativeModel('gemini-1.5-flash')
 
+            # Inisialisasi riwayat chat
             if "messages" not in st.session_state:
                 st.session_state.messages = []
 
+            # >>> BLOK KODE BARU UNTUK SAPAAN PEMBUKA <<<
+            # Hanya tampilkan sapaan jika chat masih kosong
+            if not st.session_state.messages:
+                welcome_message = """
+                Selamat datang di **MutasiPedia**! 👋
+                
+                Saya adalah asisten virtual kepegawaian dari BKPSDMD Bangka yang siap membantu Anda. Anda bisa menanyakan hal-hal berikut:
+                
+                * **Informasi Kepegawaian:** Seputar aturan Kenaikan Pangkat, Pensiun, Pindah Instansi, dll.
+                * **Pengetahuan Umum:** Jika informasi tidak ada dalam data saya, saya akan mencoba menjawab sebagai asisten umum.
+                
+                Silakan ajukan pertanyaan Anda di bawah ini.
+                """
+                # Tampilkan pesan sapaan di antarmuka
+                with st.chat_message("assistant"):
+                    st.markdown(welcome_message)
+                # Tambahkan sapaan ke riwayat chat agar tidak muncul lagi
+                st.session_state.messages.append({"role": "assistant", "content": welcome_message})
+
+            # Tampilkan seluruh riwayat chat (termasuk sapaan)
             for message in st.session_state.messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
+            # Terima input dari pengguna
             if prompt_input := st.chat_input(config["app"]["chat_input_placeholder"]):
                 st.session_state.messages.append({"role": "user", "content": prompt_input})
                 with st.chat_message("user"):
